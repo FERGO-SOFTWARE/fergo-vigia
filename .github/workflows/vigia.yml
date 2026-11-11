@@ -1,0 +1,44 @@
+name: vigia
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vigia
+  cancel-in-progress: false
+
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Testes da regra
+        run: PYTHONPATH=. python3 testes/test_vigia.py
+
+      - name: Estado da última passada
+        run: |
+          git fetch -q origin estado 2>/dev/null && git show origin/estado:estado.json > estado.json || echo '{}' > estado.json
+
+      - name: Conferir os sistemas
+        env:
+          VIGIA_PUSH_TOKENS: ${{ secrets.VIGIA_PUSH_TOKENS }}
+        run: python3 vigia.py sistemas.json estado.json
+
+      - name: Guardar o estado
+        run: |
+          cp estado.json /tmp/estado.json
+          git config user.name "vigia"
+          git config user.email "vigia@users.noreply.github.com"
+          if git rev-parse -q --verify origin/estado >/dev/null; then git checkout -q -B estado origin/estado; else git checkout -q --orphan estado && git rm -rfq . ; fi
+          cp /tmp/estado.json estado.json
+          git add estado.json
+          git diff --cached --quiet || { git commit -qm "estado" && git push -q origin estado; }

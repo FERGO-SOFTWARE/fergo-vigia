@@ -1,0 +1,4 @@
+[
+  {"id": "amelie", "nome": "AMELIE", "ping": "https://amelieapp.com.br/api/admin/v1/ping"},
+  {"id": "meuabba", "nome": "MeuAbba", "ping": "https://meuabba.com.br/api/admin/v1/ping"}
+]
