@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
+    inputs:
+      teste:
+        description: 'Mandar um aviso de teste e ler o recibo da Apple'
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -24,16 +29,25 @@ jobs:
       - name: Testes da regra
         run: PYTHONPATH=. python3 testes/test_vigia.py
 
+      - name: Aviso de teste
+        if: inputs.teste
+        env:
+          VIGIA_PUSH_TOKENS: ${{ secrets.VIGIA_PUSH_TOKENS }}
+        run: python3 vigia.py --teste
+
       - name: Estado da última passada
+        if: ${{ !inputs.teste }}
         run: |
           git fetch -q origin estado 2>/dev/null && git show origin/estado:estado.json > estado.json || echo '{}' > estado.json
 
       - name: Conferir os sistemas
+        if: ${{ !inputs.teste }}
         env:
           VIGIA_PUSH_TOKENS: ${{ secrets.VIGIA_PUSH_TOKENS }}
         run: python3 vigia.py sistemas.json estado.json
 
       - name: Guardar o estado
+        if: ${{ !inputs.teste }}
         run: |
           cp estado.json /tmp/estado.json
           git config user.name "vigia"

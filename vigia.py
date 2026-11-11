@@ -11,6 +11,7 @@ Segredo (ambiente): VIGIA_PUSH_TOKENS = códigos de aparelho separados por vírg
 from __future__ import annotations
 
 import json
+import re
 import os
 import socket
 import ssl
@@ -26,6 +27,12 @@ LEMBRAR_A_CADA_S = 6 * 3600  # continua fora: lembra a cada 6 horas
 CERT_DIAS = (7, 3, 1)        # avisa quando faltar 7, 3 e 1 dia
 LIMITE_S = 12
 EXPO = "https://exp.host/--/api/v2/push/send"
+RECIBOS = "https://exp.host/--/api/v2/push/getReceipts"
+
+
+def esconder(texto: str) -> str:
+    """O registro do GitHub é público: nunca imprime o código do aparelho."""
+    return re.sub(r"Expo(nent)?PushToken\[[^\]]*\]", "ExpoPushToken[…]", str(texto))
 
 
 def consultar(url: str) -> tuple[bool, str]:
@@ -121,7 +128,7 @@ def enviar(tokens: list[str], avisos: list[dict]) -> bool:
             resposta = json.loads(r.read())
         erros = [x.get("message", "erro") for x in resposta.get("data", []) if x.get("status") != "ok"]
         for e in erros:
-            print(f"::warning::Expo recusou um aviso: {e}")
+            print(f"::warning::Expo recusou um aviso: {esconder(e)}")
         return not erros
     except (urllib.error.URLError, OSError, ValueError) as e:
         print(f"::warning::Não deu para enviar o aviso: {type(e).__name__}")
@@ -169,5 +176,45 @@ def main(caminho_sistemas: str, caminho_estado: str) -> int:
     return 0
 
 
+def _postar(url: str, corpo: object) -> dict:
+    pedido = urllib.request.Request(url, data=json.dumps(corpo).encode(), headers={"Content-Type": "application/json", "Accept": "application/json"})
+    with urllib.request.urlopen(pedido, timeout=20) as r:
+        return json.loads(r.read())
+
+
+def teste() -> int:
+    """Manda um aviso de teste e lê o recibo da Apple pelo Expo, para saber se chegou ou por que não."""
+    tokens = tokens_do_ambiente()
+    if not tokens:
+        print("::error::Segredo VIGIA_PUSH_TOKENS vazio ou fora do formato.")
+        return 1
+    msgs = [{"to": t, "title": "FERGO", "body": "Teste do vigia.", "sound": "default", "priority": "high", "data": {"tipo": "teste"}} for t in tokens]
+    tickets = _postar(EXPO, msgs).get("data", [])
+    ids = []
+    for n, t in enumerate(tickets, 1):
+        if t.get("status") == "ok":
+            ids.append(t["id"])
+            print(f"Aparelho {n}: Expo aceitou o envio.")
+        else:
+            print(f"::error::Aparelho {n}: Expo recusou: {esconder(t.get('message'))} {t.get('details', {}).get('error', '')}")
+    if not ids:
+        return 1
+    time.sleep(25)
+    recibos = _postar(RECIBOS, {"ids": ids}).get("data", {})
+    falhou = False
+    for n, i in enumerate(ids, 1):
+        r = recibos.get(i)
+        if r is None:
+            print(f"Aparelho {n}: recibo ainda não saiu (a Apple não respondeu em 25 s).")
+        elif r.get("status") == "ok":
+            print(f"Aparelho {n}: a Apple aceitou. O aviso foi entregue ao iPhone.")
+        else:
+            falhou = True
+            print(f"::error::Aparelho {n}: a Apple recusou: {r.get('details', {}).get('error', '')} {esconder(r.get('message'))}")
+    return 1 if falhou else 0
+
+
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["--teste"]:
+        sys.exit(teste())
     sys.exit(main(sys.argv[1], sys.argv[2]))
