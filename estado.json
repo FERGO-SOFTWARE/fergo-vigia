@@ -4,13 +4,13 @@
  "amelie": {
   "avisado_em": null,
   "cert_avisado": null,
-  "falhas": 0,
-  "fora_desde": null
+  "falhas": 1,
+  "fora_desde": 1794503679.435693
  },
  "meuabba": {
   "avisado_em": null,
   "cert_avisado": null,
-  "falhas": 0,
-  "fora_desde": null
+  "falhas": 1,
+  "fora_desde": 1794503679.435693
  }
 }
