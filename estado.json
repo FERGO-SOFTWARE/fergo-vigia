@@ -1,16 +1,16 @@
 {
- "_cert_dia": "2026-11-21",
- "_dia": "2026-11-21",
+ "_cert_dia": "2026-11-22",
+ "_dia": "2026-11-22",
  "amelie": {
   "avisado_em": null,
   "cert_avisado": null,
-  "falhas": 0,
-  "fora_desde": null
+  "falhas": 1,
+  "fora_desde": 1795309926.1258483
  },
  "meuabba": {
   "avisado_em": null,
   "cert_avisado": null,
-  "falhas": 0,
-  "fora_desde": null
+  "falhas": 1,
+  "fora_desde": 1795309926.1258483
  }
 }
