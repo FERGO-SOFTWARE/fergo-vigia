@@ -7,7 +7,25 @@
   "falhas": 0,
   "fora_desde": null
  },
+ "fergo-site": {
+  "avisado_em": null,
+  "cert_avisado": null,
+  "falhas": 0,
+  "fora_desde": null
+ },
  "meuabba": {
+  "avisado_em": null,
+  "cert_avisado": null,
+  "falhas": 0,
+  "fora_desde": null
+ },
+ "onebarbearia": {
+  "avisado_em": null,
+  "cert_avisado": null,
+  "falhas": 0,
+  "fora_desde": null
+ },
+ "servidor": {
   "avisado_em": null,
   "cert_avisado": null,
   "falhas": 0,
