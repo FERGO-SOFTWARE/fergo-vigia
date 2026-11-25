@@ -61,5 +61,31 @@ class Decidir(unittest.TestCase):
         self.assertEqual(vigia.tokens_do_ambiente(), ["ExponentPushToken[abc]", "ExpoPushToken[def]"])
 
 
+class Saude(unittest.TestCase):
+    V = {"id": "servidor", "nome": "Servidor da FERGO", "ping": "https://exemplo.invalid/s.json", "tipo": "saude"}
+
+    def test_boletim_bom(self):
+        self.assertEqual(vigia.ler_saude(b'{"ok": true, "gerado": %d, "problemas": []}' % T0, T0 + 600), (True, "ok"))
+
+    def test_boletim_com_problema_diz_qual(self):
+        corpo = b'{"ok": false, "gerado": %d, "problemas": ["backup externo", "disco"]}' % T0
+        self.assertEqual(vigia.ler_saude(corpo, T0 + 600), (False, "backup externo, disco"))
+
+    def test_boletim_velho_e_problema_mesmo_dizendo_ok(self):
+        ok, motivo = vigia.ler_saude(b'{"ok": true, "gerado": %d}' % T0, T0 + 4 * 3600)
+        self.assertEqual((ok, motivo), (False, "servidor sem se conferir há 4 h"))
+
+    def test_boletim_quebrado(self):
+        self.assertEqual(vigia.ler_saude(b"<html>", T0), (False, "boletim fora do combinado"))
+        self.assertEqual(vigia.ler_saude(b'{"ok": true}', T0), (False, "boletim fora do combinado"))
+
+    def test_textos_do_servidor(self):
+        a1, _ = vigia.decidir(self.V, {}, False, "backup externo", None, T0)
+        a2, avisos = vigia.decidir(self.V, a1, False, "backup externo", None, T0 + 300)
+        self.assertEqual(avisos[0]["texto"], "Precisa de atenção: backup externo.")
+        _, avisos = vigia.decidir(self.V, a2, True, "ok", None, T0 + 3900)
+        self.assertEqual(avisos[0]["texto"], "Voltou ao normal depois de 1 h 5 min.")
+
+
 if __name__ == "__main__":
     unittest.main()
