@@ -1,4 +1,7 @@
 [
   {"id": "amelie", "nome": "AMELIE", "ping": "https://amelieapp.com.br/api/admin/v1/ping"},
-  {"id": "meuabba", "nome": "MeuAbba", "ping": "https://meuabba.com.br/api/admin/v1/ping"}
+  {"id": "meuabba", "nome": "MeuAbba", "ping": "https://meuabba.com.br/api/admin/v1/ping"},
+  {"id": "fergo-site", "nome": "Site da FERGO", "ping": "https://fergo.com.br/", "tipo": "pagina"},
+  {"id": "onebarbearia", "nome": "OneBarbearia", "ping": "https://onebarbearia.com.br/", "tipo": "pagina"},
+  {"id": "servidor", "nome": "Servidor da FERGO", "ping": "https://fergo.com.br/.well-known/fergo-saude.json", "tipo": "saude"}
 ]

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Vigia externo da FERGO.
 
-Consulta o /ping público de cada sistema de fora da hospedagem deles e avisa o
-aparelho do dono (notificação pelo Expo) quando um sistema cai, quando volta e
-quando o certificado está perto de vencer. Só biblioteca padrão.
+Consulta de fora da hospedagem o /ping de cada sistema, a página de cada site e o
+boletim que o servidor publica sobre si mesmo (certificados, backups, disco e
+serviços), e avisa o aparelho do dono (notificação pelo Expo) quando algo cai,
+quando volta e quando um certificado está perto de vencer. Só biblioteca padrão.
 
 Uso: python3 vigia.py sistemas.json estado.json
 Segredo (ambiente): VIGIA_PUSH_TOKENS = códigos de aparelho separados por vírgula.
@@ -26,6 +27,7 @@ FALHAS_PARA_AVISAR = 2      # duas passadas seguidas sem resposta = fora do ar
 LEMBRAR_A_CADA_S = 6 * 3600  # continua fora: lembra a cada 6 horas
 CERT_DIAS = (7, 3, 1)        # avisa quando faltar 7, 3 e 1 dia
 LIMITE_S = 12
+SAUDE_VELHA_S = 3 * 3600   # boletim do servidor com mais de 3 horas = servidor parou de se conferir
 EXPO = "https://exp.host/--/api/v2/push/send"
 RECIBOS = "https://exp.host/--/api/v2/push/getReceipts"
 
@@ -35,14 +37,35 @@ def esconder(texto: str) -> str:
     return re.sub(r"Expo(nent)?PushToken\[[^\]]*\]", "ExpoPushToken[…]", str(texto))
 
 
-def consultar(url: str) -> tuple[bool, str]:
-    """Uma tentativa. Fora do ar = não respondeu, não é 200 ou não é o JSON combinado."""
+def ler_saude(corpo: bytes, agora: float) -> tuple[bool, str]:
+    """Boletim que o próprio servidor publica: certificados, backups, disco e serviços.
+    Boletim velho também é problema: quer dizer que o servidor parou de se conferir."""
     try:
-        pedido = urllib.request.Request(url, headers={"User-Agent": "fergo-vigia/1", "Accept": "application/json"})
+        d = json.loads(corpo)
+        gerado = float(d["gerado"])
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return False, "boletim fora do combinado"
+    if agora - gerado > SAUDE_VELHA_S:
+        return False, "servidor sem se conferir há " + duracao(int((agora - gerado) // 60))
+    if d.get("ok") is True:
+        return True, "ok"
+    problemas = [str(p)[:40] for p in (d.get("problemas") or []) if isinstance(p, str)][:4]
+    return False, ", ".join(problemas) or "problema não informado"
+
+
+def consultar(url: str, tipo: str = "ping", agora: float | None = None) -> tuple[bool, str]:
+    """Uma tentativa. Fora do ar = não respondeu, não é 200 ou não é a resposta combinada.
+    tipo "ping": JSON com ok=true. "pagina": basta responder 200. "saude": boletim do servidor."""
+    try:
+        pedido = urllib.request.Request(url, headers={"User-Agent": "fergo-vigia/1", "Accept": "application/json, text/html;q=0.9"})
         with urllib.request.urlopen(pedido, timeout=LIMITE_S) as r:
             corpo = r.read(4096)
             if r.status != 200:
                 return False, f"HTTP {r.status}"
+        if tipo == "pagina":
+            return True, "ok"
+        if tipo == "saude":
+            return ler_saude(corpo, time.time() if agora is None else agora)
         try:
             ok = json.loads(corpo).get("ok") is True
         except (ValueError, AttributeError):
@@ -57,13 +80,13 @@ def consultar(url: str) -> tuple[bool, str]:
         return False, "sem resposta" if isinstance(motivo, (socket.timeout, TimeoutError)) else "sem conexão"
 
 
-def no_ar(url: str, pausa_s: float = 8.0) -> tuple[bool, str]:
+def no_ar(url: str, pausa_s: float = 8.0, tipo: str = "ping") -> tuple[bool, str]:
     """Duas tentativas na mesma passada, para um soluço de rede não contar como falha."""
-    ok, motivo = consultar(url)
+    ok, motivo = consultar(url, tipo)
     if ok:
         return ok, motivo
     time.sleep(pausa_s)
-    return consultar(url)
+    return consultar(url, tipo)
 
 
 def dias_do_certificado(host: str, agora: float) -> int | None:
@@ -81,21 +104,22 @@ def decidir(sistema: dict, ant: dict, ok: bool, motivo: str, dias_cert: int | No
     novo = {"falhas": 0, "fora_desde": None, "avisado_em": None, "cert_avisado": ant.get("cert_avisado")}
     avisos: list[dict] = []
     nome, sid = sistema["nome"], sistema["id"]
+    saude = sistema.get("tipo") == "saude"
 
     if ok:
         if ant.get("avisado_em"):
             minutos = max(1, int((agora - (ant.get("fora_desde") or agora)) // 60))
-            avisos.append({"sistema": sid, "tipo": "voltou", "titulo": nome, "texto": f"Voltou ao ar. Ficou fora por cerca de {duracao(minutos)}."})
+            avisos.append({"sistema": sid, "tipo": "voltou", "titulo": nome, "texto": f"Voltou ao normal depois de {duracao(minutos)}." if saude else f"Voltou ao ar. Ficou fora por cerca de {duracao(minutos)}."})
     else:
         falhas = int(ant.get("falhas") or 0) + 1
         novo.update(falhas=falhas, fora_desde=ant.get("fora_desde") or agora, avisado_em=ant.get("avisado_em"))
         if falhas >= FALHAS_PARA_AVISAR and not ant.get("avisado_em"):
             novo["avisado_em"] = agora
-            avisos.append({"sistema": sid, "tipo": "fora", "titulo": nome, "texto": f"Fora do ar ({motivo})."})
+            avisos.append({"sistema": sid, "tipo": "fora", "titulo": nome, "texto": f"Precisa de atenção: {motivo}." if saude else f"Fora do ar ({motivo})."})
         elif ant.get("avisado_em") and agora - ant["avisado_em"] >= LEMBRAR_A_CADA_S:
             novo["avisado_em"] = agora
             minutos = int((agora - novo["fora_desde"]) // 60)
-            avisos.append({"sistema": sid, "tipo": "fora", "titulo": nome, "texto": f"Continua fora do ar há {duracao(minutos)}."})
+            avisos.append({"sistema": sid, "tipo": "fora", "titulo": nome, "texto": f"Continua precisando de atenção há {duracao(minutos)}: {motivo}." if saude else f"Continua fora do ar há {duracao(minutos)}."})
 
     if dias_cert is not None:
         marco = next((d for d in sorted(CERT_DIAS) if dias_cert <= d), None)
@@ -158,7 +182,7 @@ def main(caminho_sistemas: str, caminho_estado: str) -> int:
     novo_estado: dict = {"_cert_dia": hoje, "_dia": hoje}
     todos: list[dict] = []
     for s in sistemas:
-        ok, motivo = no_ar(s["ping"])
+        ok, motivo = no_ar(s["ping"], tipo=s.get("tipo", "ping"))
         dias = dias_do_certificado(urlparse(s["ping"]).hostname or "", agora) if ver_cert and ok else None
         novo, avisos = decidir(s, estado.get(s["id"], {}), ok, motivo, dias, agora)
         novo_estado[s["id"]] = novo
