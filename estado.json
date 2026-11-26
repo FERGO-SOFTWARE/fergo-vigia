@@ -1,6 +1,6 @@
 {
- "_cert_dia": "2026-11-25",
- "_dia": "2026-11-25",
+ "_cert_dia": "2026-11-26",
+ "_dia": "2026-11-26",
  "amelie": {
   "avisado_em": null,
   "cert_avisado": null,
@@ -28,7 +28,7 @@
  "servidor": {
   "avisado_em": null,
   "cert_avisado": null,
-  "falhas": 0,
-  "fora_desde": null
+  "falhas": 1,
+  "fora_desde": 1795697464.9964194
  }
 }
