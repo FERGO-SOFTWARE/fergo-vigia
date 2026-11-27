@@ -28,7 +28,7 @@
  "servidor": {
   "avisado_em": null,
   "cert_avisado": null,
-  "falhas": 1,
-  "fora_desde": 1795782753.541915
+  "falhas": 0,
+  "fora_desde": null
  }
 }
